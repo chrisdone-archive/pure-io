@@ -14,7 +14,8 @@ test input =
               name <- getLine
               putStrLn "Enter your age!"
               age <- readLn
-              putStrLn ("Your name is " ++ name ++ " and your age is " ++ show age ++ "!")
+              putStrLn ("Your name is " ++ name ++
+                        " and your age is " ++ show age ++ "!")
               return age
 ```
 
