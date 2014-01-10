@@ -17,6 +17,7 @@ module PureIO
   ,print
   ,readIO
   ,throw
+  ,catch
   )
   where
 
@@ -132,13 +133,12 @@ print = putStrLn . show
 throw :: IOException -> IO a
 throw = interrupt . InterruptException
 
-test input =
-  runIO (Input input) io
-  where io :: IO Int
-        io =
-           do putStrLn "Enter your name!"
-              name <- getLine
-              putStrLn "Enter your age!"
-              age <- readLn
-              putStrLn ("Your name is " ++ name ++ " and your age is " ++ show age ++ "!")
-              return age
+-- | Catch an IO exception.
+catch :: IO a -> (IOException -> IO a) -> IO a
+catch (IO m) f = IO (catchError m handler)
+  where handler i =
+          case i of
+            InterruptException e ->
+              let (IO m') = f e
+              in m'
+            _ -> throwError i
