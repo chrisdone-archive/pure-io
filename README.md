@@ -6,6 +6,21 @@ Pure IO monad.
 Example:
 
 ``` haskell
+test input =
+  runIO (Input input) io
+  where io :: IO Int
+        io =
+           do putStrLn "Enter your name!"
+              name <- getLine
+              putStrLn "Enter your age!"
+              age <- readLn
+              putStrLn ("Your name is " ++ name ++ " and your age is " ++ show age ++ "!")
+              return age
+```
+
+How to run it:
+
+``` haskell
 > test []
 (Left InterruptStdin
 ,Output {outputStdout = ["Enter your name!\n"]})
