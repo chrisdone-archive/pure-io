@@ -6,6 +6,7 @@ Pure IO monad.
 Example:
 
 ``` haskell
+test :: [String] -> (Either Interrupt Int, Output)
 test input =
   runIO (Input input) io
   where io :: IO Int
