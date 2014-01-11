@@ -204,7 +204,7 @@ doesFileExist fp =
   fmap (isJust)
        (IO (gets (M.lookup fp . outputFiles . snd)))
 
--- 'removeFile' /file/ removes the directory entry for an existing
+-- | 'removeFile' /file/ removes the directory entry for an existing
 -- file /file/.
 removeFile :: FilePath -> IO ()
 removeFile fp = do
