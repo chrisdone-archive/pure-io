@@ -37,12 +37,13 @@ import Safe
 -- on the type of interrupt, this function should be re-run with the
 -- same action but with additional input.
 runIO :: Input -> IO a -> (Either Interrupt a, Output)
-runIO input m = second snd
-                       (runState (runErrorT (unIO m)) (input,mempty))
+runIO input m =
+  second snd
+         (runState (runErrorT (unIO m)) (input,mempty))
 
 -- | An IO exception.
 data IOException = UserError String
-  deriving (Show)
+  deriving (Show,Read)
 
 -- | User input.
 data Input = Input
@@ -52,7 +53,7 @@ data Input = Input
 -- | IO monad output.
 data Output = Output
   { outputStdout :: ![String]
-  } deriving(Show)
+  } deriving (Show,Read)
 
 instance Monoid Output where
   mempty = Output []
@@ -67,7 +68,7 @@ data Interrupt
   | InterruptException !IOException -- ^ When you receive this
                                     -- interrupt, you should consider
                                     -- the computation as ended.
-  deriving (Show)
+  deriving (Show,Read)
 instance Error Interrupt
 
 -- | A pure IO monad.
