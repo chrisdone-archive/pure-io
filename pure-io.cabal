@@ -1,5 +1,5 @@
 name:                pure-io
-version:             0.1.0
+version:             0.1.1
 synopsis:            Pure IO monad.
 description:         Pure IO monad.
 license:             BSD3

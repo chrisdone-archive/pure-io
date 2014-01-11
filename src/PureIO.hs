@@ -27,7 +27,7 @@ import Control.Monad.Error
 import Control.Monad.State
 import Data.Maybe
 import Data.Monoid
-import Prelude hiding (IO,putStr,putStrLn,getLine,readLn,print,readIO)
+import Prelude hiding (IO,putStr,putStrLn,getLine,readLn,print,readIO,catch)
 import Safe
 
 --------------------------------------------------------------------------------
