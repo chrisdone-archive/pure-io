@@ -17,47 +17,52 @@ module PureIO
   ,print
   ,readIO
   ,throw
-  ,catch
+  ,PureIO.catch
+  ,readFile
+  ,writeFile
+  ,appendFile
+  ,doesFileExist
+  ,removeFile
+  ,getDirectoryContents
   )
   where
 
-import Control.Applicative
-import Control.Arrow
-import Control.Monad.Error
-import Control.Monad.State
-import Data.Maybe
-import Data.Monoid
-import Prelude hiding (IO,putStr,putStrLn,getLine,readLn,print,readIO,catch)
-import Safe
+import           Control.Applicative
+import           Control.Arrow
+import           Control.Monad.Error
+import           Control.Monad.State
+import           Data.Map (Map)
+import qualified Data.Map as M
+import           Data.Maybe
+import           Data.Monoid
+import           Prelude hiding (IO,putStr,putStrLn,getLine,readLn,print,readIO,readFile,writeFile,appendFile)
+import           Data.List
+import           Safe
 
 --------------------------------------------------------------------------------
 -- IO monad and machinery
 
--- | Run the IO monad. This should be called in succession. Depending
--- on the type of interrupt, this function should be re-run with the
--- same action but with additional input.
-runIO :: Input -> IO a -> (Either Interrupt a, Output)
-runIO input m =
-  second snd
-         (runState (runErrorT (unIO m)) (input,mempty))
-
 -- | An IO exception.
 data IOException = UserError String
+                 | FileNotFound FilePath
+                 | DirectoryNotFound FilePath
   deriving (Show,Read)
 
 -- | User input.
 data Input = Input
   { inputStdin :: ![String]
+  , inputFiles :: !(Map String String)
   } deriving (Show)
 
 -- | IO monad output.
 data Output = Output
   { outputStdout :: ![String]
+  , outputFiles  :: !(Map String String)
   } deriving (Show,Read)
 
 instance Monoid Output where
-  mempty = Output []
-  (Output a) `mappend` (Output b) = Output (a <> b)
+  mempty = Output mempty mempty
+  (Output a x) `mappend` (Output b y) = Output (a <> b) (x <> y)
 
 -- | Something that interrupts the flow of the IO monad.
 data Interrupt
@@ -80,10 +85,31 @@ newtype IO a = IO
   -- we don't want to export.
   deriving (Monad,Functor,Applicative)
 
+-- | Run the IO monad. This should be called in succession. Depending
+-- on the type of interrupt, this function should be re-run with the
+-- same action but with additional input.
+runIO :: Input -> IO a -> (Either Interrupt a,Output)
+runIO input m =
+  second snd
+         (runState (runErrorT (unIO m))
+                   (input { inputFiles = mempty }
+                   ,mempty { outputFiles = inputFiles input }))
+
 -- | Interrupt the IO monad. This stops the IO monad computation,
 -- allowing for any resumption later.
 interrupt :: Interrupt -> IO a
 interrupt = IO . throwError
+
+-- | Modify the given file.
+modifyFile :: FilePath -> (String -> String) -> IO ()
+modifyFile fp f =
+  modifyFiles (M.alter (\contents -> Just (f (fromMaybe "" contents))) fp)
+
+-- | Modify the output files.
+modifyFiles :: (Map FilePath String -> Map FilePath String) -> IO ()
+modifyFiles f = IO (modify (\(i,o) -> (i,updateFile o)))
+  where updateFile (Output stdout files) =
+          (Output stdout (f files))
 
 --------------------------------------------------------------------------------
 -- Library
@@ -94,15 +120,15 @@ putStrLn = putStr . (++ "\n")
 
 -- | Write a string to the standard output device.
 putStr :: String -> IO ()
-putStr new = IO (modify (\(i,o) -> (i,o <> Output [new])))
+putStr new = IO (modify (\(i,o) -> (i,o <> Output [new] mempty)))
 
 -- | Read a line from standard input.
 getLine :: IO String
 getLine = do
-  (Input is,_) <- IO get
+  (Input is fs,_) <- IO get
   case is of
     [] -> interrupt InterruptStdin
-    (i:is') -> do IO (modify (first (const (Input is'))))
+    (i:is') -> do IO (modify (first (const (Input is' fs))))
                   return i
 
 -- | The 'readIO' function is similar to 'read' except that it signals
@@ -143,3 +169,56 @@ catch (IO m) f = IO (catchError m handler)
               let (IO m') = f e
               in m'
             _ -> throwError i
+
+
+-- | The 'readFile' function reads a file and
+-- returns the contents of the file as a string.
+-- The file is read lazily, on demand, as with 'getContents'.
+readFile :: FilePath -> IO String
+readFile fp =
+  do mbytes <- IO (gets (M.lookup fp . outputFiles . snd))
+     case mbytes of
+       Nothing -> throw (FileNotFound fp)
+       Just bytes -> return bytes
+
+-- | The computation 'writeFile' @file str@ function writes the string @str@,
+-- to the file @file@.
+writeFile :: FilePath -> String -> IO ()
+writeFile fp = modifyFile fp . const
+
+-- | The computation 'appendFile' @file str@ function appends the string @str@,
+-- to the file @file@.
+--
+-- Note that 'writeFile' and 'appendFile' write a literal string
+-- to a file.  To write a value of any printable type, as with 'print',
+-- use the 'show' function to convert the value to a string first.
+--
+-- > main = appendFile "squares" (show [(x,x*x) | x <- [0,0.1..2]])
+appendFile :: FilePath -> String -> IO ()
+appendFile fp = modifyFile fp . (++)
+
+-- | The operation 'doesFileExist' returns 'True' if the argument file
+-- exists, and 'False' otherwise.
+doesFileExist :: FilePath -> IO Bool
+doesFileExist fp =
+  fmap (isJust)
+       (IO (gets (M.lookup fp . outputFiles . snd)))
+
+-- 'removeFile' /file/ removes the directory entry for an existing
+-- file /file/.
+removeFile :: FilePath -> IO ()
+removeFile fp = do
+  exists <- doesFileExist fp
+  if exists
+     then modifyFiles (M.delete fp)
+     else throw (FileNotFound fp)
+
+-- | Get all files in the given directory.
+getDirectoryContents :: FilePath -> IO [FilePath]
+getDirectoryContents fp =
+  do entries <- IO (gets (M.keys . outputFiles . snd))
+     case filter (isPrefixOf fp') entries of
+       [] -> throw (DirectoryNotFound fp)
+       fs -> return fs
+  where fp' | isSuffixOf "/" fp = fp
+            | otherwise = fp ++ "/"

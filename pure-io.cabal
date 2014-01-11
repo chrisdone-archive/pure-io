@@ -1,5 +1,5 @@
 name:                pure-io
-version:             0.1.1
+version:             0.2.0
 synopsis:            Pure IO monad.
 description:         Pure IO monad.
 license:             BSD3
@@ -17,4 +17,5 @@ library
   exposed-modules:   PureIO
   build-depends:     base >= 4 && <5,
                      safe,
-                     mtl
+                     mtl,
+                     containers
