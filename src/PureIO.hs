@@ -105,15 +105,15 @@ type IO = Free CommandF
 -- | Run the IO monad. This should be called in succession. Depending
 -- on the type of interrupt, this function should be re-run with the
 -- same action but with additional input.
-runIO :: Input -> IO a -> (Either Interrupt a, Output)
-runIO input m = flip evalState input $ runWriterT $ loop m
+runIO :: (Monad m, Monoid b)
+      => Input -> IO a -> (Output -> m b) -> m (Either Interrupt a, b)
+runIO input m f = flip evalStateT input $ runWriterT $ loop m
   where
-    loop :: IO a -> WriterT Output (State Input) (Either Interrupt a)
     loop x = case x of
         Pure a -> return $ Right a
 
         Free (PutStr a r) -> do
-            tell $ Output [a] mempty
+            tell =<< lift (lift (f (Output [a] mempty)))
             loop r
 
         Free (GetLine r) -> do
