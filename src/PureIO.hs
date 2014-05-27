@@ -1,5 +1,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GADTs #-}
+
 -- | Pure IO monad, intended for educational use.
 
 module PureIO
@@ -40,6 +42,7 @@ import           Data.Map (Map)
 import qualified Data.Map as M
 import           Data.Maybe
 import           Data.Monoid
+import           Data.Time
 import           Prelude hiding (IO,putStr,putStrLn,getLine,readLn,print,readIO,readFile,writeFile,appendFile)
 import           Data.List
 import           Safe
@@ -53,6 +56,15 @@ data IOException = UserError String
                  | FileNotFound FilePath
                  | DirectoryNotFound FilePath
   deriving (Show,Read)
+
+-- | Queries of the world
+data Query (m :: * -> *) a where
+    GetCurrentTime :: Query m UTCTime
+    ReadStdin      :: Query m (Maybe String)
+    ReadFile       :: FilePath -> Query m (Maybe String)
+
+-- | Handle effects upon the world
+data Effect = WriteStdout String
 
 -- | User input.
 data Input = Input
@@ -105,24 +117,24 @@ type IO = Free CommandF
 -- | Run the IO monad. This should be called in succession. Depending
 -- on the type of interrupt, this function should be re-run with the
 -- same action but with additional input.
-runIO :: Input -> IO a -> (Either Interrupt a, Output)
-runIO input m = flip evalState input $ runWriterT $ loop m
+runIO :: (Monad m, Monoid b)
+      => IO a -> (forall q. Query m q -> m q) -> (Effect -> m b)
+      -> m (Either Interrupt a, b)
+runIO m q f = runWriterT $ loop m
   where
-    loop :: IO a -> WriterT Output (State Input) (Either Interrupt a)
     loop x = case x of
         Pure a -> return $ Right a
 
         Free (PutStr a r) -> do
-            tell $ Output [a] mempty
+            x <- lift $ f (WriteStdout a)
+            tell x
             loop r
 
         Free (GetLine r) -> do
-          Input is fs <- lift get
-          case is of
-            []      -> return $ Left InterruptStdin
-            (i:is') -> do
-                lift $ put (Input is' fs)
-                loop (r i)
+            mx <- lift $ q ReadStdin
+            case mx of
+                Nothing -> return $ Left InterruptStdin
+                Just x  -> loop (r x)
 
         Free (ThrowIO e _) -> return $ Left e
 
