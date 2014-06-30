@@ -195,7 +195,7 @@ writeFile fp = modifyFile fp . const
 --
 -- > main = appendFile "squares" (show [(x,x*x) | x <- [0,0.1..2]])
 appendFile :: FilePath -> String -> IO ()
-appendFile fp = modifyFile fp . (++)
+appendFile fp more = modifyFile fp (\contents -> contents ++ more)
 
 -- | The operation 'doesFileExist' returns 'True' if the argument file
 -- exists, and 'False' otherwise.
