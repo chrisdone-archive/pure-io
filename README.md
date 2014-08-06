@@ -1,4 +1,4 @@
-pure-io
+pure-io [![Hackage](https://img.shields.io/hackage/v/pure-io.svg?style=flat)](https://hackage.haskell.org/package/pure-io)
 =====
 
 Pure IO monad.
